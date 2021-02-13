@@ -70,10 +70,6 @@ const Index: FC = () => {
                     <StyledGlowingButton onClick={connectWallet} data-testid="connect-wallet">
 				        Connect Wallet
 			        </StyledGlowingButton>
-                    <p>Account: {account}</p>
-                    <button onClick={getTokenBalance}>Get Token Balance</button>
-                    <p>Token Balance: {tokenBalance}</p>
-                    <button onClick={signAndRun}>YOLO INTO sTSLA</button>
                 </div>
             </CenteredContainer>
             
@@ -81,18 +77,28 @@ const Index: FC = () => {
     );
 };
 //{t('common.wallet.connect-wallet')}
-
+/*
+ *                     <p>Account: {account}</p>
+                    <button onClick={getTokenBalance}>Get Token Balance</button>
+                    <p>Token Balance: {tokenBalance}</p>
+                    <button onClick={signAndRun}>YOLO INTO sTSLA</button>
+*/
 const CenteredContainer = styled.div`
-    display:'flex',
-    justify-content:'centered'
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:50vh;
 `;
 
 const StyledGlowingButton = styled(Button).attrs({
-	variant: 'secondary',
-	size: 'lg',
+	variant: 'primary',
+	size: 'xl',
 })`
+	height: 64px;
+	line-height: 64px;
 	padding: 0 20px;
 	font-family: ${(props) => props.theme.fonts.condensedMedium};
+    font-size: 32px;
 	text-transform: uppercase;
 	margin: 4px 0px;
 `;

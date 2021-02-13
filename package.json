@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "yarn typechain && next build",
     "start": "next start -p $PORT",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "format": "prettier --write . --ignore-path .gitignore",
