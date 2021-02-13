@@ -1,7 +1,8 @@
 import { FC, useState } from "react";
 import { ethers } from "ethers";
-import { Erc20__factory, Greeter__factory } from "../contracts/types";
+import { Erc20__factory, BUYsTSLA__factory } from "../contracts/types";
 import Button from "../components/Button";
+import styled from 'styled-components';
 
 const USDCAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
@@ -11,7 +12,7 @@ const Index: FC = () => {
   const [account, setAccount] = useState<string>();
   const [tokenBalance, setTokenBalance] = useState<string>();
 
-  const connect = async () => {
+  const connectWallet = async () => {
     if (!window.ethereum?.request) {
       alert("MetaMask is not installed!");
       return;
@@ -47,17 +48,12 @@ const Index: FC = () => {
         const GreeterAddress = "0x67d269191c92Caf3cD7723F116c85e6E9bf55933";
         try
         {           
-        /*
-            const greeter = Greeter__factory.connect(GreeterAddress, provider.getSigner());
-            const result = await greeter.greet();
-            return;
-            */
             const token = Erc20__factory.connect(USDCAddress, provider.getSigner());
             const rawBalance = await token.balanceOf(account);
             let res = await token.approve(GreeterAddress,rawBalance);
             if (res)
             {
-                const greeter = Greeter__factory.connect(GreeterAddress, provider.getSigner());
+                const greeter = BUYsTSLA__factory.connect(GreeterAddress, provider.getSigner());
                 const result = await greeter.swap_usdc_to_susd(0);
             }
         }
@@ -69,7 +65,9 @@ const Index: FC = () => {
 
     return (
         <>
-            <Button onClick={connect}>Connect</Button>
+            <StyledGlowingButton onClick={connectWallet} data-testid="connect-wallet">
+				Connect Wallet
+			</StyledGlowingButton>
             <p>Account: {account}</p>
             <button onClick={getTokenBalance}>Get Token Balance</button>
             <p>Token Balance: {tokenBalance}</p>
@@ -78,5 +76,16 @@ const Index: FC = () => {
         </>
     );
 };
+//{t('common.wallet.connect-wallet')}
+
+const StyledGlowingButton = styled(Button).attrs({
+	variant: 'secondary',
+	size: 'lg',
+})`
+	padding: 0 20px;
+	font-family: ${(props) => props.theme.fonts.condensedMedium};
+	text-transform: uppercase;
+	margin: 4px 0px;
+`;
 
 export default Index;
