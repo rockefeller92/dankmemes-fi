@@ -7,24 +7,37 @@ import styled from 'styled-components';
 const USDCAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 
 const Index: FC = () => {
-  //const [provider, setProvider] = useState<ethers.providers.Web3Provider>();
-  const [provider, setProvider] = useState<ethers.providers.JsonRpcProvider>();
-  const [account, setAccount] = useState<string>();
-  const [tokenBalance, setTokenBalance] = useState<string>();
+    //const [provider, setProvider] = useState<ethers.providers.Web3Provider>();
+    const [provider, setProvider] = useState<ethers.providers.JsonRpcProvider>();
+    const [account, setAccount] = useState<string>();
+    const [tokenBalance, setTokenBalance] = useState<string>();
 
-  const connectWallet = async () => {
+    const connectWallet = async () => {
+
     if (!window.ethereum?.request) {
       alert("MetaMask is not installed!");
       return;
     }
 
     const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const accounts = await window.ethereum.request({
-      method: "eth_requestAccounts",
-    });
+    let accounts = null;
+    try {
+        accounts = await window.ethereum.request({
+            method: "eth_requestAccounts",
+        });
+    }
+    catch (err)
+    {}
 
-    setProvider(provider);
-    setAccount(accounts[0]);
+    if (!accounts || !accounts[0])
+    {
+        alert("MetaMask is not connected!");
+    }
+    else
+    {
+        setProvider(provider);
+        setAccount(accounts[0]);
+    }
   };
 
   const getTokenBalance = async () => {
