@@ -13,7 +13,7 @@ const App: FC<AppProps> = ({ Component, pageProps }) => {
 		<>
             <ThemeProvider theme={theme}>
                 <Index />
-            </ThemeProvider>>
+            </ThemeProvider>
         </>
 	);
 };
