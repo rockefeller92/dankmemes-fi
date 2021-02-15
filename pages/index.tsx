@@ -10,7 +10,9 @@ const USDCAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const sUSDAddress = "0x57Ab1ec28D129707052df4dF418D58a2D46d5f51";
 const sTSLAAddress = "0x918dA91Ccbc32B7a6A0cc4eCd5987bbab6E31e6D";
 
-const BUYsTSLAAddress = "0x6F6f570F45833E249e27022648a26F4076F48f78";
+const BUYsTSLAAddress = "0x01c1DeF3b91672704716159C9041Aeca392DdFfb";
+
+import sTSLAIcon from '@synthetixio/assets/synths/sTSLA.svg';
 
 function formatCurrency(amount:BigNumber,bignum_decimals:number,print_decimals:number):string
 {
@@ -230,9 +232,16 @@ const Index: FC = () => {
             <CenteredContainer>
                 <CenteredUI>
                     {flowState===FlowState.WALLET_DISCONNECTED || flowState===FlowState.CONNECTING_WALLET ?
-                        <StyledGlowingButton onClick={connectWalletClicked}>
-				            Connect Wallet
-			            </StyledGlowingButton>
+                        <>
+                            <Title>
+                            WANT sTSLA ?
+                            </Title>
+                            <img src={sTSLAIcon} style={{width:"128px"}} />
+                            <br/>
+                            <StyledGlowingButton onClick={connectWalletClicked}>
+				                Connect Wallet
+			                </StyledGlowingButton>
+                        </>
                         :null
                     }
 
@@ -278,7 +287,7 @@ const CenteredUI = styled.div`
 const Title = styled.span`
 	font-family: ${(props) => props.theme.fonts.interBold};
 	font-size: 20px;
-	text-transform: uppercase;
+	text-transform: none;
     color: ${(props)=>props.theme.colors.white};
 `;
 
