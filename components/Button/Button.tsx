@@ -27,7 +27,6 @@ const Button = styled.button<ButtonProps>`
 		background: ${(props) => Color(props.theme.colors.blue).alpha(0.5).rgb().string()};
 		color: ${(props) => props.theme.colors.white};
 		box-shadow: none;
-	cursor: not-allowed;
 
 	}
 

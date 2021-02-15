@@ -10,10 +10,11 @@ const USDCAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const sUSDAddress = "0x57Ab1ec28D129707052df4dF418D58a2D46d5f51";
 const sTSLAAddress = "0x918dA91Ccbc32B7a6A0cc4eCd5987bbab6E31e6D";
 
-const BUYsTSLAAddress = "0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690";
+const BUYsTSLAMainnetAddress = "0xADFfC3AB23150CD7852DeD422BE95b1C9f7204d4"
+const BUYsTSLADevAddress = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
 
-//import sTSLAIcon from '../assets/svg/synths/sTSLA.svg';
-//import USDCIcon from '../assets/svg/stablecoin/usdc.svg';
+const BUYsTSLAAddress = BUYsTSLAMainnetAddress;
+
 const sTSLAIcon = 'svg/synths/sTSLA.svg';
 const USDCIcon = 'svg/stablecoin/usdc.svg';
 
@@ -46,18 +47,11 @@ enum FlowState {
 	SELECT_USDC_AMOUNT
 }
 
-type USDCContractState = 
-{
-	erc20:Erc20
-	decimals:number
-}
-
 type ERC20ContractState = 
 {
 	erc20:Erc20
 	decimals:number
 }
-
 
 
 const Index: FC = () => {
@@ -79,11 +73,16 @@ const Index: FC = () => {
 
 	const connectWalletClicked = async(e:MouseEvent<HTMLButtonElement>) =>
 	{
+		if (flowState!==FlowState.WALLET_DISCONNECTED)
+			return;
+
 		if (!window.ethereum?.request) {
 			alert("MetaMask is not installed!");
 			return;
 		}
-		e.currentTarget.disabled = true;
+		let connectButton = e.currentTarget;
+		connectButton.disabled = true;
+
 
 		setFlowState(FlowState.CONNECTING_WALLET);
 
@@ -99,56 +98,54 @@ const Index: FC = () => {
 
 		if (!accounts || !accounts[0])
 		{
-			e.currentTarget.disabled = false;
+			connectButton.disabled = false;
 			alert("No MetaMask wallet connected!");
 			setFlowState(FlowState.WALLET_DISCONNECTED);
+			return;
 		}
-		else
+		//connect to USDC contract
+		let c = Erc20__factory.connect(USDCAddress, p.getSigner());
+		const c_decimals = await c.decimals();
+		setUSDCContract({erc20:c, decimals:c_decimals});
+
+		//connect to sUSD contract
+		let s = Erc20__factory.connect(sUSDAddress, p.getSigner());
+		const s_decimals = await s.decimals();
+		setsUSDContract({erc20:s, decimals:s_decimals});
+
+		//connect to sTSLA contract
+		let t = Erc20__factory.connect(sTSLAAddress, p.getSigner());
+		const t_decimals = await t.decimals();
+		setsTSLAContract({erc20:t, decimals:t_decimals});
+
+		//connect to BUYsTSLA contract
+		let b = BUYsTSLA__factory.connect(BUYsTSLAAddress, p.getSigner());
+		setBUYsTSLAContract(b);
+
+		//store provider
+		setProvider(p);
+
+		//set account state whenever attached wallets change
+		const accountsChanged = async (accounts:Array<string>) =>
 		{
-			//connect to USDC contract
-			let c = Erc20__factory.connect(USDCAddress, p.getSigner());
-			const c_decimals = await c.decimals();
-			setUSDCContract({erc20:c, decimals:c_decimals});
+			console.log('setting active ETH account: ' + accounts[0]);
+			setAccount(accounts[0]);
 
-			//connect to sUSD contract
-			let s = Erc20__factory.connect(sUSDAddress, p.getSigner());
-			const s_decimals = await s.decimals();
-			setsUSDContract({erc20:s, decimals:s_decimals});
+			//get usdc balance
+			const usdc_balance = await c.balanceOf(accounts[0]);
+			setUsdcBalance(usdc_balance);
 
-			//connect to sTSLA contract
-			let t = Erc20__factory.connect(sTSLAAddress, p.getSigner());
-			const t_decimals = await t.decimals();
-			setsTSLAContract({erc20:t, decimals:t_decimals});
-
-			//connect to BUYsTSLA contract
-			let b = BUYsTSLA__factory.connect(BUYsTSLAAddress, p.getSigner());
-			setBUYsTSLAContract(b);
-
-			//store provider
-			setProvider(p);
-
-			//set account state whenever attached wallets change
-			const accountsChanged = async (accounts:Array<string>) =>
-			{
-				console.log('setting active ETH account: ' + accounts[0]);
-				setAccount(accounts[0]);
-
-				//get usdc balance
-				const usdc_balance = await c.balanceOf(accounts[0]);
-				setUsdcBalance(usdc_balance);
-
-				const tsla_balance = await t.balanceOf(accounts[0]);
-				setsTSLABalance(tsla_balance);
-			}
-
-			//trigger accountsChanged
-			await accountsChanged(accounts);
-
-			//setup listener for accounts changing
-			(window.ethereum as any).on('accountsChanged', accountsChanged);
-
-			setFlowState(FlowState.SELECT_USDC_AMOUNT);
+			const tsla_balance = await t.balanceOf(accounts[0]);
+			setsTSLABalance(tsla_balance);
 		}
+
+		//trigger accountsChanged
+		await accountsChanged(accounts);
+
+		//setup listener for accounts changing
+		(window.ethereum as any).on('accountsChanged', accountsChanged);
+
+		setFlowState(FlowState.SELECT_USDC_AMOUNT);
 	};
 
 
@@ -164,22 +161,22 @@ const Index: FC = () => {
 			return;
 		}
 
-        if (BUYsTSLAContract.stsla_suspended())
-        {
-            alert("sTSLA market is closed right now, please try again during normal TSLA trading hours");
-            return;
-        }
+		if (BUYsTSLAContract.stsla_suspended())
+		{
+			alert("sTSLA market is closed right now, please try again during normal TSLA trading hours");
+			return;
+		}
 
 		const _postApprovePurchase = async () =>
 		{
 			try {
 				const result = await BUYsTSLAContract.swap_usdc_to_stsla(usdcSpendAmount);
-                console.log(result);
-                alert('Your transaction is pending, watch your wallet balance. Transaction id: ' + result);
+				console.log(result);
+				alert('Your transaction is pending, watch your wallet balance. Transaction id: ' + result);
 			}
 			catch (err)
 			{
-                alert('Sorry, your transaction could not be completed.');
+				alert('Sorry, your transaction could not be completed.');
 				console.log(err);
 			}
 		}
@@ -249,7 +246,7 @@ const Index: FC = () => {
 							<img src={sTSLAIcon} style={{width:"128px"}} />
 							<br/>
 							<Title>
-                            LETS GO!<br/>
+							LETS GO!<br/>
 							</Title><br/>
 							<StyledGlowingButton onClick={connectWalletClicked}>
 								Connect Wallet
@@ -304,7 +301,7 @@ const CenteredUI = styled.div`
 	align-items:center;
 	background-color: rgba(0,0,64,0.7);
 	padding: 32px;
-	border-radius: 24px;
+	border-radius: 32px;
 `;
 
 const Title = styled.span`
