@@ -12,8 +12,10 @@ const sTSLAAddress = "0x918dA91Ccbc32B7a6A0cc4eCd5987bbab6E31e6D";
 
 const BUYsTSLAAddress = "0x01c1DeF3b91672704716159C9041Aeca392DdFfb";
 
-import sTSLAIcon from '@synthetixio/assets/synths/sTSLA.svg';
-import USDCIcon from '../assets/svg/stablecoin/usdc.svg';
+//import sTSLAIcon from '../assets/svg/synths/sTSLA.svg';
+//import USDCIcon from '../assets/svg/stablecoin/usdc.svg';
+const sTSLAIcon = 'svg/synths/sTSLA.svg';
+const USDCIcon = 'svg/stablecoin/usdc.svg';
 
 function formatCurrency(amount:BigNumber,bignum_decimals:number,print_decimals:number):string
 {
