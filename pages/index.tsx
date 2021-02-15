@@ -1,4 +1,4 @@
-import { FC, useState, ChangeEvent, MouseEvent } from "react";
+﻿import { FC, useState, ChangeEvent, MouseEvent } from "react";
 import { ethers, BigNumber } from "ethers";
 import { Erc20, Erc20__factory, BUYsTSLA, BUYsTSLA__factory } from "../contracts/types";
 
@@ -10,7 +10,7 @@ const USDCAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const sUSDAddress = "0x57Ab1ec28D129707052df4dF418D58a2D46d5f51";
 const sTSLAAddress = "0x918dA91Ccbc32B7a6A0cc4eCd5987bbab6E31e6D";
 
-const BUYsTSLAAddress = "0x01c1DeF3b91672704716159C9041Aeca392DdFfb";
+const BUYsTSLAAddress = "0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690";
 
 //import sTSLAIcon from '../assets/svg/synths/sTSLA.svg';
 //import USDCIcon from '../assets/svg/stablecoin/usdc.svg';
@@ -164,13 +164,22 @@ const Index: FC = () => {
 			return;
 		}
 
+        if (BUYsTSLAContract.stsla_suspended())
+        {
+            alert("sTSLA market is closed right now, please try again during normal TSLA trading hours");
+            return;
+        }
+
 		const _postApprovePurchase = async () =>
 		{
 			try {
 				const result = await BUYsTSLAContract.swap_usdc_to_stsla(usdcSpendAmount);
+                console.log(result);
+                alert('Your transaction is pending, watch your wallet balance. Transaction id: ' + result);
 			}
 			catch (err)
 			{
+                alert('Sorry, your transaction could not be completed.');
 				console.log(err);
 			}
 		}
@@ -235,10 +244,13 @@ const Index: FC = () => {
 					{flowState===FlowState.WALLET_DISCONNECTED || flowState===FlowState.CONNECTING_WALLET ?
 						<>
 							<Title>
-							WANT sTSLA ?
+							sTSLA 🚀🚀🚀<br/>
 							</Title><br/>
 							<img src={sTSLAIcon} style={{width:"128px"}} />
 							<br/>
+							<Title>
+                            LETS GO!<br/>
+							</Title><br/>
 							<StyledGlowingButton onClick={connectWalletClicked}>
 								Connect Wallet
 							</StyledGlowingButton>

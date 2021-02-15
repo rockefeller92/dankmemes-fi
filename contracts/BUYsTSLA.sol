@@ -2,16 +2,17 @@
 pragma solidity ^0.7.0;
 
 import "./ERC20.sol";
+import "./ICurveSUSD.sol";
 import "./ISynthetix.sol";
 import "./IExchanger.sol";
-import "./ICurveSUSD.sol";
+import "./ISystemStatus.sol";
 
 contract BUYsTSLA
 {
 	//consts for USDC to sUSD on curve.fi
-	address constant sUSDAddress = 0x57Ab1ec28D129707052df4dF418D58a2D46d5f51;
-	address constant USDCAddress = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-	
+	IERC20 sUSD = IERC20(0x57Ab1ec28D129707052df4dF418D58a2D46d5f51);
+	IERC20 USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+
 	address constant CurveSUSDSwapAddress = 0xA5407eAE9Ba41422680e2e00537571bcC53efBfD;
 	ICurveSUSD crvSUSDSwap = ICurveSUSD(CurveSUSDSwapAddress);
 
@@ -21,10 +22,10 @@ contract BUYsTSLA
 
 	//consts for sUSD to sTSLA on Synthetix
 	address constant SynthetixAddress    = 0x97767D7D04Fd0dB0A1a2478DCd4BA85290556B48;
-	address constant SNXExchangerAddress = 0x0bfDc04B38251394542586969E2356d0D731f7DE;
 
-	ISynthetix Synthetix          = ISynthetix(SynthetixAddress);
-	IExchanger SynthetixExchanger = IExchanger(SNXExchangerAddress);
+	ISynthetix Synthetix                = ISynthetix(SynthetixAddress);
+	IExchanger SynthetixExchanger       = IExchanger(0x0bfDc04B38251394542586969E2356d0D731f7DE);
+	ISystemStatus SynthetixSystemStatus = ISystemStatus(0x1c86B3CDF2a60Ae3a574f7f71d44E2C50BDdB87E);
 
 	bytes32 sUSDKey  = 0x7355534400000000000000000000000000000000000000000000000000000000;
 	bytes32 sTSLAKey = 0x7354534c41000000000000000000000000000000000000000000000000000000;
@@ -36,6 +37,11 @@ contract BUYsTSLA
 	{
 		uint256 susd_amount = crvSUSDSwap.get_dy(USDCIndex, sUSDIndex, usdc_amount);
 		return susd_amount;
+	}
+
+	function stsla_suspended() public view returns (bool ) {
+		(bool suspended, ) = SynthetixSystemStatus.synthExchangeSuspension(sTSLAKey);
+		return suspended;
 	}
 
 	//estimate how much sTSLA you can get for USDC
@@ -53,13 +59,13 @@ contract BUYsTSLA
 	function swap_usdc_to_stsla(uint256 usdc_amount) payable external returns (uint256 )
 	{
 		//transfer incoming USDC funds from caller to this contract
-		if (!IERC20(USDCAddress).transferFrom(msg.sender, address(this), usdc_amount))
+		if (!USDC.transferFrom(msg.sender, address(this), usdc_amount))
 		{
 			revert('USDC transfer failed');
 		}
 
 		//approve sending of USDC from this contract to Curve
-		if (!IERC20(USDCAddress).approve(CurveSUSDSwapAddress, usdc_amount))
+		if (!USDC.approve(CurveSUSDSwapAddress, usdc_amount))
 		{
 			revert('USDC transfer approval failed');
 		}
@@ -77,19 +83,19 @@ contract BUYsTSLA
 
 		//note the current balance of sUSD before and after exchange on curve, this
 		//is the only definitive way to know how much we received
-		uint256 before_susd_balance = IERC20(sUSDAddress).balanceOf(address(this));
+		uint256 before_susd_balance = sUSD.balanceOf(address(this));
 
 		//do the swap
 		crvSUSDSwap.exchange(USDCIndex,sUSDIndex,usdc_amount,min_susd_expected);
 
 		//determine how much we received in the swap
-		uint256 after_susd_balance = IERC20(sUSDAddress).balanceOf(address(this));
+		uint256 after_susd_balance = sUSD.balanceOf(address(this));
 		uint256 susd_received = after_susd_balance - before_susd_balance;
 
 		//now turn sUSD it into sTSLA and send back to the caller
 
 		//give Synthetix contract permission to take susd_received from us
-		if (!IERC20(sUSDAddress).approve(SynthetixAddress, susd_received))
+		if (!sUSD.approve(SynthetixAddress, susd_received))
 		{
 			revert('sUSD transfer approval failed');
 		}
