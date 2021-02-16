@@ -4,7 +4,7 @@ Hello Team Synthetix!
 
 http://dankmemes.fi is live
 
-Demo Video: https://imgur.com/a/8lVrAvm
+Demo Video: https://imgur.com/qA3wBn1
 
 ![Imgur Image](https://i.imgur.com/pEAmNvQ.jpg)
 
