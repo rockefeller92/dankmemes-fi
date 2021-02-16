@@ -1,7 +1,8 @@
 ﻿import { FC, useState, useEffect, ChangeEvent, MouseEvent } from "react";
 import { ethers, BigNumber } from "ethers";
 import { ERC20, ERC20__factory, BUYsTSLA, BUYsTSLA__factory } from "../contracts/types";
-
+import SpinnerBase from "react-loader-spinner";
+import Colors from "../styles/theme/colors";
 import Button from "../components/Button";
 
 import styled, { css } from 'styled-components';
@@ -56,6 +57,8 @@ const Index:FC = () => {
 	//the expected amount of sTSLA they should get
 	const [expectedSTSLA, setExpectedSTSLA] = useState<BigNumber>(BigNumber.from(0));
 	const [blockNumber, setBlockNumber] = useState<number>(0);
+
+	const [txPending, setTxPending] = useState<boolean>(false);
 
 	//any time the block number changes, update our balances
 	useEffect( () => {
@@ -183,6 +186,11 @@ const Index:FC = () => {
 			alert("Can't spend more than your USDC balance");
 			return;
 		}
+		if (usdcSpendAmount.lte(BigNumber.from(0)))
+		{
+			alert("You must spend > $0");
+			return;
+		}
 
 		if (appContracts.BUYsTSLA.stsla_suspended())
 		{
@@ -198,12 +206,14 @@ const Index:FC = () => {
 		const _postApprovePurchase = async () =>
 		{
 			try {
+				setTxPending(true);
 				const result = await appContracts.BUYsTSLA.swap_usdc_to_stsla(usdcSpendAmount);
 				console.log(result);
 				alert('Your transaction is pending, watch your wallet balance. Transaction id: ' + result);
 			}
 			catch (err)
 			{
+				setTxPending(false);
 				alert('Sorry, your transaction could not be completed.');
 				console.log(err);
 			}
@@ -222,12 +232,15 @@ const Index:FC = () => {
 			{
 				try {
 					//seek approval for max tokens
+					setTxPending(true);
 					let tx = await appContracts.USDC.api.approve(appContracts.BUYsTSLA.address, ethers.constants.MaxUint256);
 					console.log(tx);
 					_postApprovePurchase();
 				}
 				catch (err)
 				{
+					alert("Failed to approve USDC transfer, can't continue");
+					setTxPending(false);
 					console.log(err);
 				}
 			}
@@ -292,9 +305,13 @@ const Index:FC = () => {
 							</FlexRow>
 							<Title>LETS GO!</Title>
 							<Title>🚀🚀🚀🚀</Title><br/>
-							<StyledGlowingButton onClick={connectWalletClicked}>
-								Connect Wallet
-							</StyledGlowingButton>
+							<FlexRow>
+								<Spinner visible={walletState===WalletState.CONNECTING} />
+								<StyledGlowingButton onClick={connectWalletClicked}>
+									Connect Wallet
+								</StyledGlowingButton>
+								<Spinner visible={walletState===WalletState.CONNECTING} />
+							</FlexRow>
 						</>
 						:
 						<>
@@ -323,9 +340,13 @@ const Index:FC = () => {
 							<Title>USDC to Spend</Title>
 							<USDCInput onChange={spendAmountChanged} defaultValue="$0" />
 							<br/>
-							<StyledGlowingButton onClick={buySTSLAClicked}>
-								BUY {formatCurrency(expectedSTSLA, appContracts?.sTSLA?.decimals??0, 2)} sTSLA
-							</StyledGlowingButton>
+							<FlexRow>
+								<Spinner visible={txPending} />
+								<StyledGlowingButton disabled={txPending} onClick={buySTSLAClicked}>
+									BUY {formatCurrency(expectedSTSLA, appContracts?.sTSLA?.decimals??0, 2)} sTSLA
+								</StyledGlowingButton>
+								<Spinner visible={txPending} />
+							</FlexRow>
 						</>
 					}
 				</CenteredUI>
@@ -350,11 +371,18 @@ const FlexRow = styled.div`
 	align-items:center;
 `;
 
-const FlexColumn= styled.div`
+const FlexColumn = styled.div`
 	display:flex;
 	flex-direction:column;
 	align-items:center;
 `;
+
+const Spinner = styled(SpinnerBase).attrs({
+	type:"Rings",
+	color:Colors.blue,
+	width:"48px",
+	height:"48px"
+})``;
 
 const WalletContainer = styled.div`
 	position:absolute;
