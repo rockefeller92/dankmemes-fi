@@ -10,7 +10,6 @@ import {formatCurrency, truncateWalletAddress} from '../util'
 
 const sTSLAIcon = 'svg/synths/sTSLA.svg';
 const USDCIcon = 'svg/stablecoin/usdc.svg';
-const RightArrowIcon = 'svg/right-arrow.svg';
 
 
 enum WalletState {
@@ -32,7 +31,7 @@ type AppContracts =
 	BUYsTSLA:BUYsTSLA
 }
 
-const Index: FC = () => {
+const Index:FC = () => {
 
 	//wallet state
 	const [provider, setProvider] = useState<ethers.providers.Web3Provider>();
@@ -280,20 +279,17 @@ const Index: FC = () => {
 				<CenteredUI>
 					{walletState!==WalletState.CONNECTED ?
 						<>
-							<div style={{display:"flex"}}>
-								<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+							<FlexRow>
+								<FlexColumn>
 									<img src={USDCIcon} style={{width:"128px"}} />
 									<Title>USDC</Title>
-								</div>
-								<svg style={{width:"48px",fill:"#fff",margin:"16px 16px"}}
-									 viewBox="0 0 216.524 216.524">
-									<polygon points="216.524,108.262 146.5,43.267 146.5,68.301 0,68.301 0,148.224 146.5,148.224 146.5,173.258 "/>
-								</svg>
-								<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+								</FlexColumn>
+								<RightArrow />
+								<FlexColumn>
 									<img src={sTSLAIcon} style={{width:"128px"}} />
 									<Title>sTSLA</Title>
-								</div>
-							</div>
+								</FlexColumn>
+							</FlexRow>
 							<Title>LETS GO!</Title>
 							<Title>🚀🚀🚀🚀</Title><br/>
 							<StyledGlowingButton onClick={connectWalletClicked}>
@@ -302,25 +298,27 @@ const Index: FC = () => {
 						</>
 						:
 						<>
-							<div style={{position:"absolute", top:"0px", right:"0px", margin:"8px 8px 0px 0px"}}>
-								<WalletButton
-									variant="solid"
-									isActive={true}>
-								{truncateWalletAddress(account??"")}
+							<WalletContainer>
+								<WalletButton variant="solid" isActive={true}>
+									{truncateWalletAddress(account??"")}
 								</WalletButton>
-							</div>
-							<div style={{display:"flex",flexDirection:"row",alignItems:"center",justifyContent:"center"}}>
-								<img src={USDCIcon} style={{width:"72px",marginRight:"4px"}} />
-								<div>
-									<Title>USDC Balance</Title><br/>
-									<SmallValue>{'$'+formatCurrency(usdcBalance, appContracts?.USDC?.decimals??0,2)}</SmallValue>
-								</div>
-								<img src={sTSLAIcon} style={{marginLeft:"32px",width:"72px",marginRight:"6px"}} />
-								<div>
-									<Title>sTSLA Balance</Title><br/>
-									<SmallValue>{formatCurrency(sTSLABalance,appContracts?.sTSLA?.decimals??0,2)}</SmallValue>
-								</div>
-							</div>
+							</WalletContainer>
+							<Balances>
+								<FlexRow>
+									<img src={USDCIcon} style={{width:"72px",marginRight:"4px"}} />
+									<div>
+										<Title>USDC Balance</Title><br/>
+										<SmallValue>{'$'+formatCurrency(usdcBalance, appContracts?.USDC?.decimals??0,2)}</SmallValue>
+									</div>
+								</FlexRow>
+								<FlexRow>
+									<img src={sTSLAIcon} style={{width:"72px",marginRight:"4px"}} />
+									<div>
+										<Title>sTSLA Balance</Title><br/>
+										<SmallValue>{formatCurrency(sTSLABalance,appContracts?.sTSLA?.decimals??0,2)}</SmallValue>
+									</div>
+								</FlexRow>
+							</Balances>
 							<br/>
 							<Title>USDC to Spend</Title>
 							<USDCInput onChange={spendAmountChanged} defaultValue="$0" />
@@ -335,7 +333,57 @@ const Index: FC = () => {
 		</>
 	);
 };
-//{t('common.wallet.connect-wallet')}
+
+const RightArrow:FC = () => {
+	return ( 
+		<>
+			<svg style={{width:"48px",fill:"#fff",margin:"16px 16px"}}
+					viewBox="0 0 216.524 216.524">
+				<polygon points="216.524,108.262 146.5,43.267 146.5,68.301 0,68.301 0,148.224 146.5,148.224 146.5,173.258 "/>
+			</svg>
+		</>
+	)
+}
+
+const FlexRow = styled.div`
+	display:flex;
+	align-items:center;
+`;
+
+const FlexColumn= styled.div`
+	display:flex;
+	flex-direction:column;
+	align-items:center;
+`;
+
+const WalletContainer = styled.div`
+	position:absolute;
+	top:0px;
+	right:0px;
+	margin:8px 8px 0px 0px;
+`;
+
+const WalletButton = styled(Button)`
+	display: inline-flex;
+	align-items: center;
+	justify-content: space-between;
+	border: 1px solid ${(props) => props.theme.colors.mediumBlue};
+
+	svg {
+		margin-left: 5px;
+		width: 10px;
+		height: 10px;
+		color: ${(props) => props.theme.colors.gray};
+		${(props) =>
+			props.isActive &&
+			css`
+				color: ${(props) => props.theme.colors.white};
+			`}
+	}
+	&:hover {
+			background: ${(props) => props.theme.colors.navy};
+	}
+`;
 
 const CenteredContainer = styled.div`
 	display:flex;
@@ -370,14 +418,26 @@ const SmallValue = styled.span`
 	color: ${(props) => props.theme.colors.black};
 `;
 
-const Value = styled.span`
-	font-family: ${(props) => props.theme.fonts.extended};
+const StyledGlowingButton = styled(Button).attrs({
+	variant: 'primary',
+	size: 'xl',
+})`
+	height: 64px;
+	line-height: 64px;
+	padding: 0 20px;
+	font-family: ${(props) => props.theme.fonts.condensedMedium};
 	font-size: 32px;
-	text-shadow: ${(props) => props.theme.colors.blueTextShadow};
-	color: ${(props) => props.theme.colors.black};
+	margin: 4px 0px;
+	text-transform: none;
 `;
 
-export const USDCInput = styled.input.attrs({ type: 'text' })`
+const Balances = styled.div`
+	display:flex;
+	align-items:center;
+	gap:32px
+`;
+
+const USDCInput = styled.input.attrs({ type: 'text' })`
 	
 	background-color: rgba(64,64,128,0.5);
 	height: unset;
@@ -392,41 +452,6 @@ export const USDCInput = styled.input.attrs({ type: 'text' })`
 	text-shadow: ${(props) => props.theme.colors.blueTextShadow};
 	color: ${(props) => props.theme.colors.black};
 	caret-color: white;
-`;
-
-const WalletButton = styled(Button)`
-	display: inline-flex;
-	align-items: center;
-	justify-content: space-between;
-	border: 1px solid ${(props) => props.theme.colors.mediumBlue};
-
-	svg {
-		margin-left: 5px;
-		width: 10px;
-		height: 10px;
-		color: ${(props) => props.theme.colors.gray};
-		${(props) =>
-			props.isActive &&
-			css`
-				color: ${(props) => props.theme.colors.white};
-			`}
-	}
-	&:hover {
-			background: ${(props) => props.theme.colors.navy};
-	}
-`;
-
-const StyledGlowingButton = styled(Button).attrs({
-	variant: 'primary',
-	size: 'xl',
-})`
-	height: 64px;
-	line-height: 64px;
-	padding: 0 20px;
-	font-family: ${(props) => props.theme.fonts.condensedMedium};
-	font-size: 32px;
-	margin: 4px 0px;
-	text-transform: none;
 `;
 
 export default Index;
