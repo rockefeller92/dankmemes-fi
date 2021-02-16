@@ -16,6 +16,7 @@ Open Metamask, click the network at the top, select "Custom RPC", and enter the 
 Select a wallet with USDC and you should be able to see balances and trigger buys.
 
 UI: https://github.com/rockefeller92/dankmemes-fi
+
 Contracts: https://github.com/rockefeller92/dankmemes-fi-contracts
 
 I've been testing IPFS deployment with Fleek, it has worked at times but was
