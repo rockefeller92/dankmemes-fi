@@ -1,7 +1,27 @@
 # dankmemes.fi
 
-Meme site for buying sTSLA with USDC
+Hello Team Synthetix!
 
-For building / testing/ deploying the contract you need .alchemyrc.json.
-It should simply contain a quoted string of the url to your alchemy API.
-For example, "https://eth-mainnet.alchemyapi.io/v2/<YOUR-UNIQUE-API-KEY>"
+https://dankmemes.fi is live
+
+
+***Important***
+
+The smart contract is not on mainnet, but it's deployed on a mainnet fork I'm running here:
+
+URL: <DM ME FOR URL>
+ChainId: 1337
+
+Open Metamask, click the network at the top, select "Custom RPC", and enter the info above.
+
+Select a wallet with USDC and you should be able to see balances and trigger buys.
+
+UI: https://github.com/rockefeller92/dankmemes-fi
+Contracts: https://github.com/rockefeller92/dankmemes-fi-contracts
+
+I've been testing IPFS deployment with Fleek, it has worked at times but was
+broken last I checked. Not sure why a lot of the resource files are 404-ing.
+It's visible in half-working form here:
+    https://ipfs.fleek.co/ipfs/Qmcyuxng1hFMpD2Phumn9Wj6BpX43Z2RrrFNa6CmDFFrpC
+
+Thanks!
