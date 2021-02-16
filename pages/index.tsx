@@ -1,79 +1,65 @@
 ﻿import { FC, useState, ChangeEvent, MouseEvent } from "react";
 import { ethers, BigNumber } from "ethers";
-import { Erc20, Erc20__factory, BUYsTSLA, BUYsTSLA__factory } from "../contracts/types";
+import { ERC20, ERC20__factory, BUYsTSLA, BUYsTSLA__factory } from "../contracts/types";
 
 import Button from "../components/Button";
 
-import styled from 'styled-components';
-
-const USDCAddress = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
-const sUSDAddress = "0x57Ab1ec28D129707052df4dF418D58a2D46d5f51";
-const sTSLAAddress = "0x918dA91Ccbc32B7a6A0cc4eCd5987bbab6E31e6D";
-
-const BUYsTSLAMainnetAddress = "0xADFfC3AB23150CD7852DeD422BE95b1C9f7204d4"
-const BUYsTSLADevAddress = "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c";
-
-const BUYsTSLAAddress = BUYsTSLAMainnetAddress;
+import styled, { css } from 'styled-components';
+import {ContractAddresses,NetAddressTable} from '../constants/Addresses';
+import {formatCurrency, truncateWalletAddress} from '../util'
 
 const sTSLAIcon = 'svg/synths/sTSLA.svg';
 const USDCIcon = 'svg/stablecoin/usdc.svg';
+const RightArrowIcon = 'svg/right-arrow.svg';
 
-function formatCurrency(amount:BigNumber,bignum_decimals:number,print_decimals:number):string
-{
-	let str = ethers.utils.formatUnits(amount, bignum_decimals);
-	let split = str.split('.');
-	let zeroTail = '0'.repeat(print_decimals);
 
-	if (split.length==0)
-		str = '0.' + zeroTail;
-	else
-	if (split.length==1)
-	{
-		str = str+'.'+zeroTail;
-	}
-	else
-	{
-		//make sure there's at least N trailing 0's and chop off at N
-		split[1] = (split[1] + zeroTail).substr(0,print_decimals);
-		str = split.join('.');
-	}
-
-	return str;
+enum WalletState {
+	DISCONNECTED,
+	CONNECTING,
+	CONNECTED
 }
 
-enum FlowState {
-	WALLET_DISCONNECTED,
-	CONNECTING_WALLET,
-	SELECT_USDC_AMOUNT
-}
-
-type ERC20ContractState = 
+type ERC20Contract = 
 {
-	erc20:Erc20
+	api:ERC20
 	decimals:number
 }
 
+type AppContracts =
+{
+	USDC:ERC20Contract,
+	sTSLA:ERC20Contract,
+	BUYsTSLA:BUYsTSLA
+}
 
 const Index: FC = () => {
+
+	//wallet state
 	const [provider, setProvider] = useState<ethers.providers.Web3Provider>();
 	const [account, setAccount] = useState<string>();
-	const [flowState, setFlowState] = useState<FlowState>(FlowState.WALLET_DISCONNECTED);
 
-	const [sUSDContract, setsUSDContract] = useState<ERC20ContractState>();
-	const [sTSLAContract, setsTSLAContract] = useState<ERC20ContractState>();
+	//wallet state
+	const [walletState, setWalletState] = useState<WalletState>(WalletState.DISCONNECTED);
+
+	//the app's contract used to buy sTSLA with USDC
+	const [BUYsTSLAContract, setBUYsTSLAContract] = useState<BUYsTSLA>();
+
+	//USDC and sTSLA contracts
+	const [appContracts, setAppContracts] = useState<AppContracts>();
+
+	//USDC and sTSLA account balances
 	const [sTSLABalance, setsTSLABalance] = useState<BigNumber>(BigNumber.from(0));
-
-	const [USDCContract, setUSDCContract] = useState<ERC20ContractState>();
 	const [usdcBalance, setUsdcBalance] = useState<BigNumber>(BigNumber.from(0));
+
+	//the amount of USDC the user wants to use to buy
 	const [usdcSpendAmount, setUsdcSpendAmount] = useState<BigNumber>(BigNumber.from(0));
 
-	const [BUYsTSLAContract, setBUYsTSLAContract] = useState<BUYsTSLA>();
+	//the expected amount of sTSLA they should get
 	const [expectedSTSLA, setExpectedSTSLA] = useState<BigNumber>(BigNumber.from(0));
-
 
 	const connectWalletClicked = async(e:MouseEvent<HTMLButtonElement>) =>
 	{
-		if (flowState!==FlowState.WALLET_DISCONNECTED)
+		if (walletState!==WalletState.DISCONNECTED)
 			return;
 
 		if (!window.ethereum?.request) {
@@ -83,8 +69,7 @@ const Index: FC = () => {
 		let connectButton = e.currentTarget;
 		connectButton.disabled = true;
 
-
-		setFlowState(FlowState.CONNECTING_WALLET);
+		setWalletState(WalletState.CONNECTING);
 
 		const p = new ethers.providers.Web3Provider(window.ethereum);
 		let accounts:Array<string> = [];
@@ -99,28 +84,47 @@ const Index: FC = () => {
 		if (!accounts || !accounts[0])
 		{
 			connectButton.disabled = false;
+			setWalletState(WalletState.DISCONNECTED);
 			alert("No MetaMask wallet connected!");
-			setFlowState(FlowState.WALLET_DISCONNECTED);
 			return;
 		}
-		//connect to USDC contract
-		let c = Erc20__factory.connect(USDCAddress, p.getSigner());
-		const c_decimals = await c.decimals();
-		setUSDCContract({erc20:c, decimals:c_decimals});
 
-		//connect to sUSD contract
-		let s = Erc20__factory.connect(sUSDAddress, p.getSigner());
-		const s_decimals = await s.decimals();
-		setsUSDContract({erc20:s, decimals:s_decimals});
+		let network = (await p.getNetwork());
+		let netName = network.name;
+		if (netName==="unknown") //assume this means they selected localhost
+			netName = 'localhost';
 
-		//connect to sTSLA contract
-		let t = Erc20__factory.connect(sTSLAAddress, p.getSigner());
-		const t_decimals = await t.decimals();
-		setsTSLAContract({erc20:t, decimals:t_decimals});
+		let addressBook = ContractAddresses[netName as keyof NetAddressTable];
+		if (!addressBook)
+		{
+			connectButton.disabled = false;
+			setWalletState(WalletState.DISCONNECTED);
+			const netNameLookup:any = {
+				homestead:"mainnet"
+			}
+			let n = netNameLookup[netName]??netName;
+			alert(`"${n}" network not supported, please try another network`);
+			return;
+		}
 
-		//connect to BUYsTSLA contract
-		let b = BUYsTSLA__factory.connect(BUYsTSLAAddress, p.getSigner());
-		setBUYsTSLAContract(b);
+
+		//get contracts
+		let usdcContract = ERC20__factory.connect(addressBook.USDC, p.getSigner());
+		let sTslaContract = ERC20__factory.connect(addressBook.sTSLA, p.getSigner());
+		let buysTsla = BUYsTSLA__factory.connect(addressBook.BUYsTSLA, p.getSigner());
+
+		//set contract state
+		setAppContracts({
+			USDC: {
+				api: usdcContract,
+				decimals: await usdcContract.decimals()
+			},
+			sTSLA: {
+				api: sTslaContract,
+				decimals: await sTslaContract.decimals()
+			},
+			BUYsTSLA: buysTsla
+		});
 
 		//store provider
 		setProvider(p);
@@ -132,10 +136,10 @@ const Index: FC = () => {
 			setAccount(accounts[0]);
 
 			//get usdc balance
-			const usdc_balance = await c.balanceOf(accounts[0]);
+			const usdc_balance = await usdcContract.balanceOf(accounts[0]);
 			setUsdcBalance(usdc_balance);
 
-			const tsla_balance = await t.balanceOf(accounts[0]);
+			const tsla_balance = await sTslaContract.balanceOf(accounts[0]);
 			setsTSLABalance(tsla_balance);
 		}
 
@@ -145,14 +149,14 @@ const Index: FC = () => {
 		//setup listener for accounts changing
 		(window.ethereum as any).on('accountsChanged', accountsChanged);
 
-		setFlowState(FlowState.SELECT_USDC_AMOUNT);
+		setWalletState(WalletState.CONNECTED);
 	};
 
 
 
 	const buySTSLAClicked = async () =>
 	{
-		if (!provider || !account || !USDCContract || !BUYsTSLAContract)
+		if (!provider || !account || !appContracts)
 			return;
 
 		if (usdcSpendAmount.gt(usdcBalance))
@@ -161,16 +165,21 @@ const Index: FC = () => {
 			return;
 		}
 
-		if (BUYsTSLAContract.stsla_suspended())
+		if (appContracts.BUYsTSLA.stsla_suspended())
 		{
 			alert("sTSLA market is closed right now, please try again during normal TSLA trading hours");
 			return;
 		}
 
+		//ERC20 approval process
+		//1. must approve the BUYsTSLA contract as a spender on the users USDC 
+		//2. then the purchase can be made
+
+		//2nd step of ERC20 approval process
 		const _postApprovePurchase = async () =>
 		{
 			try {
-				const result = await BUYsTSLAContract.swap_usdc_to_stsla(usdcSpendAmount);
+				const result = await appContracts.BUYsTSLA.swap_usdc_to_stsla(usdcSpendAmount);
 				console.log(result);
 				alert('Your transaction is pending, watch your wallet balance. Transaction id: ' + result);
 			}
@@ -181,17 +190,20 @@ const Index: FC = () => {
 			}
 		}
 
+		//ERC20 approval check.. must approve the BUYsTSLA contract as a spender on the users USDC 
+		//before they can purchase
 		try
 		{           
 			//how much is our contract allowed to spend on behalf of the current account?
-			let curAllowance = await USDCContract.erc20.allowance(account, BUYsTSLAAddress);
-			console.log('curAllowance: ' + formatCurrency(curAllowance,USDCContract.decimals,2));
+			let curAllowance = await appContracts.USDC.api.allowance(account, appContracts.BUYsTSLA.address);
+			console.log('curAllowance: ' + formatCurrency(curAllowance,appContracts.USDC.decimals,2));
 
 			//if we're trying to spend more than we're allowed, we need approval
 			if (usdcSpendAmount.gte(curAllowance))
 			{
 				try {
-					let tx = await USDCContract.erc20.approve(BUYsTSLAAddress, ethers.constants.MaxUint256);
+					//seek approval for max tokens
+					let tx = await appContracts.USDC.api.approve(appContracts.BUYsTSLA.address, ethers.constants.MaxUint256);
 					console.log(tx);
 					_postApprovePurchase();
 				}
@@ -214,22 +226,30 @@ const Index: FC = () => {
 
 	const spendAmountChanged = async (e:ChangeEvent<HTMLInputElement>) =>
 	{
-		if (USDCContract && BUYsTSLAContract)
+		if (!appContracts)
+			return;
+
+		//force a $ 
+		if (e.target.value.length<=0 || e.target.value[0]!=='$')
+			e.target.value = '$' + e.target.value;
+
+		//convert the input to a BigNumber formatted w/the correct # of decimals
+		//for USDC token
+		let num = parseInt(e.target.value.substr(1));
+		if (!isNaN(num))
 		{
-			//force a $ 
-			if (e.target.value.length<=0 || e.target.value[0]!=='$')
-				e.target.value = '$' + e.target.value;
+			let amt = BigNumber.from(num).mul(10 ** appContracts.USDC.decimals);
+			setUsdcSpendAmount(amt);
 
-			let num = parseInt(e.target.value.substr(1));
-			if (!isNaN(num))
-			{
-				let amt = BigNumber.from(num).mul(10 ** USDCContract.decimals);
-				setUsdcSpendAmount(amt);
-
-				//get approx tsla returned from a trade
-				let res = await BUYsTSLAContract.est_swap_usdc_to_stsla(amt);
+			//get approx tsla returned from a trade
+			try {
+				let res = await appContracts.BUYsTSLA.est_swap_usdc_to_stsla(amt);
 				setExpectedSTSLA(res);
-
+			}
+			catch (err)
+			{
+				setExpectedSTSLA(BigNumber.from(0));
+				console.error(err);
 			}
 		}
 	}
@@ -238,35 +258,47 @@ const Index: FC = () => {
 		<>
 			<CenteredContainer>
 				<CenteredUI>
-					{flowState===FlowState.WALLET_DISCONNECTED || flowState===FlowState.CONNECTING_WALLET ?
+					{walletState!==WalletState.CONNECTED ?
 						<>
-							<Title>
-							sTSLA 🚀🚀🚀<br/>
-							</Title><br/>
-							<img src={sTSLAIcon} style={{width:"128px"}} />
-							<br/>
-							<Title>
-							LETS GO!<br/>
-							</Title><br/>
+							<div style={{display:"flex"}}>
+								<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+									<img src={USDCIcon} style={{width:"128px"}} />
+									<Title>USDC</Title>
+								</div>
+								<svg style={{width:"48px",fill:"#fff",margin:"16px 16px"}}
+									 viewBox="0 0 216.524 216.524">
+									<polygon points="216.524,108.262 146.5,43.267 146.5,68.301 0,68.301 0,148.224 146.5,148.224 146.5,173.258 "/>
+								</svg>
+								<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+									<img src={sTSLAIcon} style={{width:"128px"}} />
+									<Title>sTSLA</Title>
+								</div>
+							</div>
+							<Title>LETS GO!</Title>
+							<Title>🚀🚀🚀🚀</Title><br/>
 							<StyledGlowingButton onClick={connectWalletClicked}>
 								Connect Wallet
 							</StyledGlowingButton>
 						</>
-						:null
-					}
-
-					{flowState===FlowState.SELECT_USDC_AMOUNT ?
+						:
 						<>
+							<div style={{position:"absolute", top:"0px", right:"0px"}}>
+								<WalletButton
+									variant="solid"
+									isActive={true}>
+								{truncateWalletAddress(account??"")}
+								</WalletButton>
+							</div>
 							<div style={{display:"flex",flexDirection:"row",alignItems:"center",justifyContent:"center"}}>
 								<img src={USDCIcon} style={{width:"72px",marginRight:"4px"}} />
 								<div>
 									<Title>USDC Balance</Title><br/>
-									<SmallValue>{'$'+formatCurrency(usdcBalance,USDCContract?USDCContract.decimals:0,2)}</SmallValue>
+									<SmallValue>{'$'+formatCurrency(usdcBalance, appContracts?.USDC?.decimals??0,2)}</SmallValue>
 								</div>
 								<img src={sTSLAIcon} style={{marginLeft:"32px",width:"72px",marginRight:"6px"}} />
 								<div>
 									<Title>sTSLA Balance</Title><br/>
-									<SmallValue>{formatCurrency(sTSLABalance,sTSLAContract?sTSLAContract.decimals:0,2)}</SmallValue>
+									<SmallValue>{formatCurrency(sTSLABalance,appContracts?.sTSLA?.decimals??0,2)}</SmallValue>
 								</div>
 							</div>
 							<br/>
@@ -274,14 +306,12 @@ const Index: FC = () => {
 							<USDCInput onChange={spendAmountChanged} defaultValue="$0" />
 							<br/>
 							<StyledGlowingButton onClick={buySTSLAClicked}>
-								BUY {formatCurrency(expectedSTSLA, sUSDContract?sUSDContract.decimals:0, 2)} sTSLA
+								BUY {formatCurrency(expectedSTSLA, appContracts?.sTSLA?.decimals??0, 2)} sTSLA
 							</StyledGlowingButton>
 						</>
-						:null
 					}
 				</CenteredUI>
 			</CenteredContainer>
-			
 		</>
 	);
 };
@@ -327,11 +357,12 @@ const Value = styled.span`
 
 export const USDCInput = styled.input.attrs({ type: 'text' })`
 	
-	background-color: unset;
+	background-color: rgba(64,64,128,0.5);
 	height: unset;
-	width: 200px;
+	width: 300px;
 	border: 0;
-	padding: 0px;
+	border-radius: 12px;
+	padding: 2px;
 	outline: none;
 	text-align:center;
 	font-family: ${(props) => props.theme.fonts.extended};
@@ -339,6 +370,28 @@ export const USDCInput = styled.input.attrs({ type: 'text' })`
 	text-shadow: ${(props) => props.theme.colors.blueTextShadow};
 	color: ${(props) => props.theme.colors.black};
 	caret-color: white;
+`;
+
+const WalletButton = styled(Button)`
+	display: inline-flex;
+	align-items: center;
+	justify-content: space-between;
+	border: 1px solid ${(props) => props.theme.colors.mediumBlue};
+
+	svg {
+		margin-left: 5px;
+		width: 10px;
+		height: 10px;
+		color: ${(props) => props.theme.colors.gray};
+		${(props) =>
+			props.isActive &&
+			css`
+				color: ${(props) => props.theme.colors.white};
+			`}
+	}
+	&:hover {
+			background: ${(props) => props.theme.colors.navy};
+	}
 `;
 
 const StyledGlowingButton = styled(Button).attrs({
