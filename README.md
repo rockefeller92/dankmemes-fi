@@ -10,7 +10,7 @@ Demo Video: https://imgur.com/a/8lVrAvm
 
 ***Important*** -> The smart contract is not on mainnet, but it's deployed on a mainnet fork I'm running here:
 
-URL: -DM ME ON DISCORD FOR URL-
+URL: http://DM ME ON DISCORD FOR URL
 
 ChainId: 1337
 
