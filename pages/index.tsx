@@ -1,4 +1,4 @@
-﻿import { FC, useState, ChangeEvent, MouseEvent } from "react";
+﻿import { FC, useState, useEffect, ChangeEvent, MouseEvent } from "react";
 import { ethers, BigNumber } from "ethers";
 import { ERC20, ERC20__factory, BUYsTSLA, BUYsTSLA__factory } from "../contracts/types";
 
@@ -56,6 +56,20 @@ const Index: FC = () => {
 
 	//the expected amount of sTSLA they should get
 	const [expectedSTSLA, setExpectedSTSLA] = useState<BigNumber>(BigNumber.from(0));
+	const [blockNumber, setBlockNumber] = useState<number>(0);
+
+	//any time the block number changes, update our balances
+	useEffect( () => {
+		const updateBalances = async (contracts:AppContracts, account:string) =>
+		{
+			let usdc = await contracts.USDC.api.balanceOf(account);
+			setUsdcBalance(usdc);
+			setsTSLABalance(await contracts.sTSLA.api.balanceOf(account));
+		}
+
+		if (appContracts && account)
+			updateBalances(appContracts,account);
+	}, [blockNumber]);
 
 	const connectWalletClicked = async(e:MouseEvent<HTMLButtonElement>) =>
 	{
@@ -128,6 +142,12 @@ const Index: FC = () => {
 
 		//store provider
 		setProvider(p);
+
+		//when the provider detects new blocks, update our balances
+		p.on("block", (blockNumber) =>
+		{
+			setBlockNumber(blockNumber);
+		});
 
 		//set account state whenever attached wallets change
 		const accountsChanged = async (accounts:Array<string>) =>
@@ -332,6 +352,8 @@ const CenteredUI = styled.div`
 	background-color: rgba(0,0,64,0.7);
 	padding: 32px;
 	border-radius: 32px;
+	box-shadow: 0px 0px 12px #000;
+    border: 2px solid #222259;
 `;
 
 const Title = styled.span`
