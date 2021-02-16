@@ -1,11 +1,14 @@
 ﻿import { FC, useState, useEffect, ChangeEvent, MouseEvent } from "react";
+import styled, { css } from 'styled-components';
 import { ethers, BigNumber } from "ethers";
-import { ERC20, ERC20__factory, BUYsTSLA, BUYsTSLA__factory } from "../contracts/types";
+
 import SpinnerBase from "react-loader-spinner";
 import Colors from "../styles/theme/colors";
 import Button from "../components/Button";
 
-import styled, { css } from 'styled-components';
+import { useAlert } from "react-alert";
+
+import { ERC20, ERC20__factory, BUYsTSLA, BUYsTSLA__factory } from "../contracts/types";
 import {ContractAddresses,NetAddressTable} from '../constants/Addresses';
 import {formatCurrency, truncateWalletAddress} from '../util'
 
@@ -60,6 +63,9 @@ const Index:FC = () => {
 
 	const [txPending, setTxPending] = useState<boolean>(false);
 
+	//for giving the user status updates
+	const alert = useAlert();
+
 	//any time the block number changes, update our balances
 	useEffect( () => {
 		const updateBalances = async (contracts:AppContracts, account:string) =>
@@ -79,7 +85,7 @@ const Index:FC = () => {
 			return;
 
 		if (!window.ethereum?.request) {
-			alert("MetaMask is not installed!");
+			alert.error("MetaMask is not installed!");
 			return;
 		}
 		let connectButton = e.currentTarget;
@@ -101,46 +107,78 @@ const Index:FC = () => {
 		{
 			connectButton.disabled = false;
 			setWalletState(WalletState.DISCONNECTED);
-			alert("No MetaMask wallet connected!");
+			alert.error("No MetaMask wallet connected!");
 			return;
 		}
 
-		let network = (await p.getNetwork());
-		let netName = network.name;
-		if (netName==="unknown") //assume this means they selected localhost
-			netName = 'localhost';
+		//we've got an account.. what about a network? do we like it?
 
-		let addressBook = ContractAddresses[netName as keyof NetAddressTable];
-		if (!addressBook)
+		const setupNetwork = async ():Promise<boolean> =>
 		{
-			connectButton.disabled = false;
-			setWalletState(WalletState.DISCONNECTED);
-			const netNameLookup:any = {
-				homestead:"mainnet"
+			let network = (await p.getNetwork());
+			let netName = network.name;
+			if (netName==="unknown") //assume this means they selected localhost
+				netName = 'localhost';
+
+			let addressBook = ContractAddresses[netName as keyof NetAddressTable];
+			if (!addressBook)
+			{
+				connectButton.disabled = false;
+				setWalletState(WalletState.DISCONNECTED);
+				const netNameLookup:any = {
+					homestead:"mainnet"
+				}
+				let n = netNameLookup[netName]??netName;
+				alert.error(`"${n}" network not supported, please try another network.`);
+				return false;
 			}
-			let n = netNameLookup[netName]??netName;
-			alert(`"${n}" network not supported, please try another network`);
-			return;
+
+			//get contracts
+			let usdcContract = ERC20__factory.connect(addressBook.USDC, p.getSigner());
+			let sTslaContract = ERC20__factory.connect(addressBook.sTSLA, p.getSigner());
+			let buysTsla = BUYsTSLA__factory.connect(addressBook.BUYsTSLA, p.getSigner());
+
+			//set contract state
+			setAppContracts({
+				USDC: {
+					api: usdcContract,
+					decimals: await usdcContract.decimals()
+				},
+				sTSLA: {
+					api: sTslaContract,
+					decimals: await sTslaContract.decimals()
+				},
+				BUYsTSLA: buysTsla
+			});
+
+			//set account state whenever attached wallets change
+			const setupAccount = async (accounts:Array<string>) =>
+			{
+				console.log('setting active ETH account: ' + accounts[0]);
+				setAccount(accounts[0]);
+
+				//get usdc balance
+				const usdc_balance = await usdcContract.balanceOf(accounts[0]);
+				setUsdcBalance(usdc_balance);
+
+				const tsla_balance = await sTslaContract.balanceOf(accounts[0]);
+				setsTSLABalance(tsla_balance);
+			}
+
+			//trigger accountsChanged
+			await setupAccount(accounts);
+
+			//listen for account changes
+			(window.ethereum as any).on('accountsChanged', setupAccount);
+
+			return true;
 		}
 
+		if (!(await setupNetwork()))
+			return;
 
-		//get contracts
-		let usdcContract = ERC20__factory.connect(addressBook.USDC, p.getSigner());
-		let sTslaContract = ERC20__factory.connect(addressBook.sTSLA, p.getSigner());
-		let buysTsla = BUYsTSLA__factory.connect(addressBook.BUYsTSLA, p.getSigner());
-
-		//set contract state
-		setAppContracts({
-			USDC: {
-				api: usdcContract,
-				decimals: await usdcContract.decimals()
-			},
-			sTSLA: {
-				api: sTslaContract,
-				decimals: await sTslaContract.decimals()
-			},
-			BUYsTSLA: buysTsla
-		});
+		//setup listener for chains/network changing
+		(window.ethereum as any).on('chainChanged', setupNetwork);
 
 		//store provider
 		setProvider(p);
@@ -151,25 +189,7 @@ const Index:FC = () => {
 			setBlockNumber(blockNumber);
 		});
 
-		//set account state whenever attached wallets change
-		const accountsChanged = async (accounts:Array<string>) =>
-		{
-			console.log('setting active ETH account: ' + accounts[0]);
-			setAccount(accounts[0]);
-
-			//get usdc balance
-			const usdc_balance = await usdcContract.balanceOf(accounts[0]);
-			setUsdcBalance(usdc_balance);
-
-			const tsla_balance = await sTslaContract.balanceOf(accounts[0]);
-			setsTSLABalance(tsla_balance);
-		}
-
-		//trigger accountsChanged
-		await accountsChanged(accounts);
-
-		//setup listener for accounts changing
-		(window.ethereum as any).on('accountsChanged', accountsChanged);
+		
 
 		setWalletState(WalletState.CONNECTED);
 	};
@@ -183,18 +203,18 @@ const Index:FC = () => {
 
 		if (usdcSpendAmount.gt(usdcBalance))
 		{
-			alert("Can't spend more than your USDC balance");
+			alert.error("Can't spend more than your USDC balance");
 			return;
 		}
 		if (usdcSpendAmount.lte(BigNumber.from(0)))
 		{
-			alert("You must spend > $0");
+			alert.error("You must spend > $0");
 			return;
 		}
 
 		if (appContracts.BUYsTSLA.stsla_suspended())
 		{
-			alert("sTSLA market is closed right now, please try again during normal TSLA trading hours");
+			alert.error("sTSLA market is closed right now, please try again during normal TSLA trading hours");
 			return;
 		}
 
@@ -209,14 +229,23 @@ const Index:FC = () => {
 				setTxPending(true);
 				const result = await appContracts.BUYsTSLA.swap_usdc_to_stsla(usdcSpendAmount);
 				console.log(result);
-				alert('Your transaction is pending, watch your wallet balance. Transaction id: ' + result);
+				alert.show('Your transaction is pending:' + result.hash);
+				try {
+					await appContracts.BUYsTSLA.provider.waitForTransaction(result.hash);
+					alert.success('Your transaction completed:' + result.hash);
+				}
+				catch (err)
+				{
+					alert.error('Error waiting for your transaction to complete, check the console for more info.');
+					console.error(err);
+				}
 			}
 			catch (err)
 			{
-				setTxPending(false);
-				alert('Sorry, your transaction could not be completed.');
+				alert.error('Sorry, your transaction could not be completed.');
 				console.log(err);
 			}
+			setTxPending(false);
 		}
 
 		//ERC20 approval check.. must approve the BUYsTSLA contract as a spender on the users USDC 
@@ -239,7 +268,11 @@ const Index:FC = () => {
 				}
 				catch (err)
 				{
-					alert("Failed to approve USDC transfer, can't continue");
+					if (err.message.includes('nonce'))
+						alert.error('Nonce error, reset your Metamask account');
+					else
+						alert.error("Failed to approve USDC transfer, can't continue.");
+
 					setTxPending(false);
 					console.log(err);
 				}
