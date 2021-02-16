@@ -2,7 +2,7 @@
 
 Hello Team Synthetix!
 
-http://dankmemes.fi is live
+https://dankmemes.fi is live
 
 Demo Video: https://imgur.com/qA3wBn1
 
@@ -24,7 +24,8 @@ Contracts: https://github.com/rockefeller92/dankmemes-fi-contracts
 
 I've been testing IPFS deployment with Fleek, it has worked at times but was
 broken last I checked. Not sure why a lot of the resource files are 404-ing.
-It's visible in half-working form here:
-    https://ipfs.fleek.co/ipfs/Qmcyuxng1hFMpD2Phumn9Wj6BpX43Z2RrrFNa6CmDFFrpC
+Fleek support says I need to perhaps use "hash routing", which I intend to try
+when I get a chance. It's visible in half-working form here:
+    https://ipfs.fleek.co/ipfs/QmbXBK7mK6ctyU13hn9EdYodQvoxYUYyBHrFZVjwnGobpS/
 
 Thanks!
