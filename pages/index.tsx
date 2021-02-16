@@ -212,7 +212,9 @@ const Index:FC = () => {
 			return;
 		}
 
-		if (appContracts.BUYsTSLA.stsla_suspended())
+		let r = await appContracts.BUYsTSLA.stsla_suspended();
+		console.log(r);
+		if (r)
 		{
 			alert.error("sTSLA market is closed right now, please try again during normal TSLA trading hours");
 			return;
