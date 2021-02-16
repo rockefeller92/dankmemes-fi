@@ -4,6 +4,9 @@ Hello Team Synthetix!
 
 http://dankmemes.fi is live
 
+[Imgur Image](https://i.imgur.com/pEAmNvQ.jpg)
+
+Demo Video: https://imgur.com/a/8lVrAvm
 
 ***Important*** -> The smart contract is not on mainnet, but it's deployed on a mainnet fork I'm running here:
 
