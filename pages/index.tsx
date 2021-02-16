@@ -229,6 +229,7 @@ const Index:FC = () => {
 		{
 			try {
 				setTxPending(true);
+				alert.show('Requesting transaction approval');
 				const result = await appContracts.BUYsTSLA.swap_usdc_to_stsla(usdcSpendAmount);
 				console.log(result);
 				alert.show('Your transaction is pending:' + result.hash);
@@ -264,6 +265,8 @@ const Index:FC = () => {
 				try {
 					//seek approval for max tokens
 					setTxPending(true);
+					alert.info("Requesting access to your USDC wallet");
+
 					let tx = await appContracts.USDC.api.approve(appContracts.BUYsTSLA.address, ethers.constants.MaxUint256);
 					console.log(tx);
 					_postApprovePurchase();
@@ -273,7 +276,7 @@ const Index:FC = () => {
 					if (err.message.includes('nonce'))
 						alert.error('Nonce error, reset your Metamask account');
 					else
-						alert.error("Failed to approve USDC transfer, can't continue.");
+						alert.error("Failed to approve USDC wallet access, can't continue.");
 
 					setTxPending(false);
 					console.log(err);
