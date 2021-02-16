@@ -282,7 +282,7 @@ const Index: FC = () => {
 						</>
 						:
 						<>
-							<div style={{position:"absolute", top:"0px", right:"0px"}}>
+							<div style={{position:"absolute", top:"0px", right:"0px", margin:"8px 8px 0px 0px"}}>
 								<WalletButton
 									variant="solid"
 									isActive={true}>

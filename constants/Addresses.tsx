@@ -1,4 +1,4 @@
-export type Addresses = {USDC:string,sUSD:string,sTSLA:string,BUYsTSLA:string};
+export type Addresses = {USDC:string,sTSLA:string,BUYsTSLA:string};
 export type NetAddressTable = { homestead?:Addresses, kovan?:Addresses, localhost:Addresses};
 
 export const ContractAddresses:NetAddressTable = {
