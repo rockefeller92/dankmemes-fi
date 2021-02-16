@@ -2,7 +2,7 @@
 
 Hello Team Synthetix!
 
-https://dankmemes.fi is live
+http://dankmemes.fi is live
 
 
 ***Important*** -> The smart contract is not on mainnet, but it's deployed on a mainnet fork I'm running here:
