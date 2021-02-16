@@ -5,11 +5,10 @@ Hello Team Synthetix!
 https://dankmemes.fi is live
 
 
-***Important***
+***Important*** -> The smart contract is not on mainnet, but it's deployed on a mainnet fork I'm running here:
 
-The smart contract is not on mainnet, but it's deployed on a mainnet fork I'm running here:
+URL: -DM ME ON DISCORD FOR URL-
 
-URL: <DM ME FOR URL>
 ChainId: 1337
 
 Open Metamask, click the network at the top, select "Custom RPC", and enter the info above.
