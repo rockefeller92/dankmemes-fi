@@ -212,6 +212,8 @@ const Index:FC = () => {
 			return;
 		}
 
+		/*
+		//this step is not necessary anymore since the contract uses Balancer to acquire sTSLA instead of Synthetix
 		let r = await appContracts.BUYsTSLA.stsla_suspended();
 		console.log(r);
 		if (r)
@@ -219,6 +221,7 @@ const Index:FC = () => {
 			alert.error("sTSLA market is closed right now, please try again during normal TSLA trading hours");
 			return;
 		}
+		*/
 
 		//ERC20 approval process
 		//1. must approve the BUYsTSLA contract as a spender on the users USDC 
