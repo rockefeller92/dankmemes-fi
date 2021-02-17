@@ -8,13 +8,17 @@ import Button from "../components/Button";
 
 import { useAlert } from "react-alert";
 
-import { ERC20, ERC20__factory, BUYsTSLA, BUYsTSLA__factory } from "../contracts/types";
+import {
+	ERC20, ERC20__factory,
+	BUYsTSLA, BUYsTSLA__factory,
+	SynthetixDelegateApprovals, SynthetixDelegateApprovals__factory
+} from "../contracts/types";
+
 import {ContractAddresses,NetAddressTable} from '../constants/Addresses';
 import {formatCurrency, truncateWalletAddress} from '../util'
 
 const sTSLAIcon = 'svg/synths/sTSLA.svg';
 const USDCIcon = 'svg/stablecoin/usdc.svg';
-
 
 enum WalletState {
 	DISCONNECTED,
@@ -32,22 +36,20 @@ type AppContracts =
 {
 	USDC:ERC20Contract,
 	sTSLA:ERC20Contract,
-	BUYsTSLA:BUYsTSLA
+	BUYsTSLA:BUYsTSLA,
+	SynthetixDelegateApprovals:SynthetixDelegateApprovals
 }
 
 const Index:FC = () => {
 
-	//wallet state
+	//network / account state
 	const [provider, setProvider] = useState<ethers.providers.Web3Provider>();
 	const [account, setAccount] = useState<string>();
 
 	//wallet state
 	const [walletState, setWalletState] = useState<WalletState>(WalletState.DISCONNECTED);
 
-	//the app's contract used to buy sTSLA with USDC
-	const [BUYsTSLAContract, setBUYsTSLAContract] = useState<BUYsTSLA>();
-
-	//USDC and sTSLA contracts
+	//the contracts used by the app
 	const [appContracts, setAppContracts] = useState<AppContracts>();
 
 	//USDC and sTSLA account balances
@@ -59,40 +61,50 @@ const Index:FC = () => {
 
 	//the expected amount of sTSLA they should get
 	const [expectedSTSLA, setExpectedSTSLA] = useState<BigNumber>(BigNumber.from(0));
-	const [blockNumber, setBlockNumber] = useState<number>(0);
 
+	//the txPending state is used to disable the "Buy" button and display little spinner/progress animation
+	//while a buy is in progress
 	const [txPending, setTxPending] = useState<boolean>(false);
+
+	//this state is updated per-block and tracks whether the Synthetix sTSLA exchange is open for trading
+	const [synthetixExchangeOpen, setSynthetixExchangeOpen] = useState<boolean>(false);
 
 	//for giving the user status updates
 	const alert = useAlert();
 
 	//any time the block number changes, update our balances
+	const [blockNumber, setBlockNumber] = useState<number>(0);
 	useEffect( () => {
-		const updateBalances = async (contracts:AppContracts, account:string) =>
+		const perBlockUpdate = async (contracts:AppContracts, account:string) =>
 		{
-			let usdc = await contracts.USDC.api.balanceOf(account);
-			setUsdcBalance(usdc);
+			setUsdcBalance(await contracts.USDC.api.balanceOf(account));
 			setsTSLABalance(await contracts.sTSLA.api.balanceOf(account));
+			setSynthetixExchangeOpen(await QuerySynthetixExchangeOpen());
 		}
 
 		if (appContracts && account)
-			updateBalances(appContracts,account);
+			perBlockUpdate(appContracts,account);
 	}, [blockNumber]);
 
 	const connectWalletClicked = async(e:MouseEvent<HTMLButtonElement>) =>
 	{
-		if (walletState!==WalletState.DISCONNECTED)
-			return;
-
 		if (!window.ethereum?.request) {
 			alert.error("MetaMask is not installed!");
 			return;
 		}
-		let connectButton = e.currentTarget;
-		connectButton.disabled = true;
 
+		//some checks to ensure multiple connection attempts happen
+		//simultaneously
+		let connectButton = e.currentTarget;
+
+		if (walletState!==WalletState.DISCONNECTED || connectButton.disabled==true)
+			return;
+
+		//begin connection process..
+		connectButton.disabled = true;
 		setWalletState(WalletState.CONNECTING);
 
+		//get a provider and an account from MetaMask
 		const p = new ethers.providers.Web3Provider(window.ethereum);
 		let accounts:Array<string> = [];
 		try {
@@ -117,8 +129,11 @@ const Index:FC = () => {
 		{
 			let network = (await p.getNetwork());
 			let netName = network.name;
-			if (netName==="unknown") //assume this means they selected localhost
-				netName = 'localhost';
+
+			//MetaMask assigns 'unknown' name to any localhost or custom RPC
+			//assume the intention is to connect to a fork of mainnet
+			if (netName==="unknown")
+				netName = 'homestead_fork';
 
 			let addressBook = ContractAddresses[netName as keyof NetAddressTable];
 			if (!addressBook)
@@ -137,6 +152,7 @@ const Index:FC = () => {
 			let usdcContract = ERC20__factory.connect(addressBook.USDC, p.getSigner());
 			let sTslaContract = ERC20__factory.connect(addressBook.sTSLA, p.getSigner());
 			let buysTsla = BUYsTSLA__factory.connect(addressBook.BUYsTSLA, p.getSigner());
+			let sda = SynthetixDelegateApprovals__factory.connect(addressBook.SynthetixDelegateApprovals, p.getSigner());
 
 			//set contract state
 			setAppContracts({
@@ -148,7 +164,8 @@ const Index:FC = () => {
 					api: sTslaContract,
 					decimals: await sTslaContract.decimals()
 				},
-				BUYsTSLA: buysTsla
+				BUYsTSLA: buysTsla,
+				SynthetixDelegateApprovals: sda
 			});
 
 			//set account state whenever attached wallets change
@@ -189,11 +206,88 @@ const Index:FC = () => {
 			setBlockNumber(blockNumber);
 		});
 
-		
-
 		setWalletState(WalletState.CONNECTED);
 	};
 
+	const ApproveUSDCSpending = async():Promise<boolean> =>
+	{
+		if (!appContracts || !account)
+			return false;
+
+		try {
+			//how much is our contract allowed to spend on behalf of the current account?
+			let curAllowance = await appContracts.USDC.api.allowance(account, appContracts.BUYsTSLA.address);
+			//console.log('curAllowance: ' + formatCurrency(curAllowance,appContracts.USDC.decimals,2));
+
+			//if we're trying to spend less than or equal to the amount currently approved, no
+			//further approval is needed
+			if (usdcSpendAmount.lte(curAllowance))
+				return true;
+
+			//seek approval for max tokens
+			alert.info("Requesting permission to spend your USDC");
+
+			let tx = await appContracts.USDC.api.approve(appContracts.BUYsTSLA.address, ethers.constants.MaxUint256);
+			return true;
+		}
+		catch (err)
+		{
+			if (err.message.includes('nonce'))
+				alert.error('Nonce error, please reset your MetaMask account');
+			else
+				alert.error("Failed to approve USDC spending, can't continue.");
+
+			console.log(err);
+			return false;
+		}
+	}
+
+	const ApproveSynthetixExchangeOnBehalf = async():Promise<boolean> =>
+	{
+		if (!appContracts || !account)
+			return false;
+
+		try {
+			//do we already have approval? don't need to ask again..
+			let alreadyApproved = await appContracts.SynthetixDelegateApprovals.canExchangeFor(account, appContracts.BUYsTSLA.address);
+			if (alreadyApproved)
+				return true;
+
+			//request that the user give Synthetix permission for our contract to trade on their behalf
+			alert.info("Requesting permission to make Synthetix trades on your behalf");
+			let approveOk = await appContracts.SynthetixDelegateApprovals.approveExchangeOnBehalf(appContracts.BUYsTSLA.address);
+			//console.log(approveOk);
+			return true;
+		}
+		catch (err)
+		{
+			if (err.message.includes('nonce'))
+				alert.error('Nonce error, please reset your MetaMask account');
+			else
+				alert.error("Failed to approve Synthetix trading, can't continue.");
+
+			console.log(err);
+			return false;
+		}
+	}
+
+	const QuerySynthetixExchangeOpen = async ():Promise<boolean> =>
+	{
+		if (!appContracts)
+			return false;
+
+		try {
+			let stsla_suspended = await appContracts.BUYsTSLA.stsla_suspended();
+
+			//if it's not suspended, it's open for trading
+			return (stsla_suspended===false);
+		}
+		catch (err)
+		{
+			console.log(err);
+			return false;
+		}
+	}
 
 
 	const buySTSLAClicked = async () =>
@@ -212,89 +306,52 @@ const Index:FC = () => {
 			return;
 		}
 
-		/*
-		//this step is not necessary anymore since the contract uses Balancer to acquire sTSLA instead of Synthetix
-		let r = await appContracts.BUYsTSLA.stsla_suspended();
-		console.log(r);
-		if (r)
+		setTxPending(true);
+
+		//some approvals needed before we trade
+		//1. must approve the BUYsTSLA contract as a spender on the users USDC
+		if (!(await ApproveUSDCSpending()))
 		{
-			alert.error("sTSLA market is closed right now, please try again during normal TSLA trading hours");
+			setTxPending(false);
 			return;
 		}
-		*/
 
-		//ERC20 approval process
-		//1. must approve the BUYsTSLA contract as a spender on the users USDC 
-		//2. then the purchase can be made
-
-		//2nd step of ERC20 approval process
-		const _postApprovePurchase = async () =>
+		//2. if the synthetix exchange is open, we will use it for trading
+		//but we need their permission for our contract to submit Synthetix trades on their behalf
+		let useSynthetix = false;
+		if (synthetixExchangeOpen)
 		{
+			if (!(await ApproveSynthetixExchangeOnBehalf()))
+			{
+				setTxPending(false);
+				return;
+			}
+			useSynthetix = true;
+		}
+
+		//ok pre-approvals are done, now submit the transaction
+		try {
+
+			alert.show('Requesting permission to swap USDC for sTSLA');
+			const result = await appContracts.BUYsTSLA.swap_usdc_to_stsla(usdcSpendAmount, useSynthetix);
+			console.log(result);
+			alert.show('Your transaction is pending:' + result.hash);
 			try {
-				setTxPending(true);
-				alert.show('Requesting transaction approval');
-				const result = await appContracts.BUYsTSLA.swap_usdc_to_stsla(usdcSpendAmount);
-				console.log(result);
-				alert.show('Your transaction is pending:' + result.hash);
-				try {
-					await appContracts.BUYsTSLA.provider.waitForTransaction(result.hash);
-					alert.success('Your transaction completed:' + result.hash);
-				}
-				catch (err)
-				{
-					alert.error('Error waiting for your transaction to complete, check the console for more info.');
-					console.error(err);
-				}
+				await appContracts.BUYsTSLA.provider.waitForTransaction(result.hash);
+				alert.success('Your transaction completed:' + result.hash);
 			}
 			catch (err)
 			{
-				alert.error('Sorry, your transaction could not be completed.');
-				console.log(err);
-			}
-			setTxPending(false);
-		}
-
-		//ERC20 approval check.. must approve the BUYsTSLA contract as a spender on the users USDC 
-		//before they can purchase
-		try
-		{           
-			//how much is our contract allowed to spend on behalf of the current account?
-			let curAllowance = await appContracts.USDC.api.allowance(account, appContracts.BUYsTSLA.address);
-			console.log('curAllowance: ' + formatCurrency(curAllowance,appContracts.USDC.decimals,2));
-
-			//if we're trying to spend more than we're allowed, we need approval
-			if (usdcSpendAmount.gte(curAllowance))
-			{
-				try {
-					//seek approval for max tokens
-					setTxPending(true);
-					alert.info("Requesting access to your USDC wallet");
-
-					let tx = await appContracts.USDC.api.approve(appContracts.BUYsTSLA.address, ethers.constants.MaxUint256);
-					console.log(tx);
-					_postApprovePurchase();
-				}
-				catch (err)
-				{
-					if (err.message.includes('nonce'))
-						alert.error('Nonce error, reset your Metamask account');
-					else
-						alert.error("Failed to approve USDC wallet access, can't continue.");
-
-					setTxPending(false);
-					console.log(err);
-				}
-			}
-			else
-			{
-				//no approval needed go straight to purchase
-				_postApprovePurchase();
+				alert.error('Error waiting for your transaction to complete, check the console for more info.');
+				console.error(err);
 			}
 		}
 		catch (err)
 		{
+			alert.error('Sorry, your transaction could not be completed.');
 			console.log(err);
 		}
+		setTxPending(false);
 	}
 
 	const spendAmountChanged = async (e:ChangeEvent<HTMLInputElement>) =>
@@ -316,7 +373,11 @@ const Index:FC = () => {
 
 			//get approx tsla returned from a trade
 			try {
-				let res = await appContracts.BUYsTSLA.est_swap_usdc_to_stsla(amt);
+
+				//use synthetix if the market is open
+				let useSynthetix = synthetixExchangeOpen;
+
+				let res = await appContracts.BUYsTSLA.est_swap_usdc_to_stsla(amt, useSynthetix);
 				setExpectedSTSLA(res);
 			}
 			catch (err)
