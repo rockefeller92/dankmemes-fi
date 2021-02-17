@@ -26,6 +26,6 @@ I've been testing IPFS deployment with Fleek, it has worked at times but was
 broken last I checked. Not sure why a lot of the resource files are 404-ing.
 Fleek support says I need to perhaps use "hash routing", which I intend to try
 when I get a chance. It's visible in half-working form here:
-    https://ipfs.fleek.co/ipfs/QmbXBK7mK6ctyU13hn9EdYodQvoxYUYyBHrFZVjwnGobpS/
+    https://ipfs.fleek.co/ipfs/QmUK89vPdsD2ETwBdutn1RvuQ1wYePTuTgpWakZsvThAgh/
 
 Thanks!
