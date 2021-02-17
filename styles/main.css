@@ -3,7 +3,7 @@
 }
 
 html {
-    background-image:url('../public/images/roadster-moon.jpg');
+    background-image:url('/images/roadster-moon.jpg');
     background-size: cover;
     background-position: center;
 }
