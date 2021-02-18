@@ -1,12 +1,11 @@
 /// <reference types="next" />
 /// <reference types="next/types/global" />
-
-import { ethers } from "ethers";
+/// <reference types="optimized-images-loader" />
 
 declare global {
-  interface Window {
-    ethereum?: ethers.providers.ExternalProvider;
-  }
+	interface Window {
+		ethereum: Provider | undefined;
+	}
 }
 
 export {};
